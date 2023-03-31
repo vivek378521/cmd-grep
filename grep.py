@@ -3,7 +3,7 @@ import os
 
 
 def print_usage_and_exit():
-    print("Usage: grep search_string directory [-o outfile] [-i]")
+    print("Usage: grep search_string [file/directory] [-o outfile] [-i]")
     sys.exit(1)
 
 
@@ -36,6 +36,26 @@ def read_from_stdin(search_string, case_sensitive, outfile):
     return matches
 
 
+def read_from_file(search_string, case_sensitive, outfile, file_path):
+    matches = []
+    try:
+        with open(file_path, "r") as f:
+            for line in f:
+                line = line.rstrip("\n")
+                if not case_sensitive:
+                    line = line.lower()
+                    search_string = search_string.lower()
+                if search_string in line:
+                    matches.append(f"{file_path}:{line}")
+                    if outfile:
+                        with open(outfile, "a") as out_f:
+                            out_f.write(f"{file_path}:{line}\n")
+    except FileNotFoundError:
+        print(f"Error: {file_path} not found")
+        sys.exit(1)
+    return matches
+
+
 def read_from_directory(search_string, case_sensitive, outfile, dir_path):
     matches = []
     try:
@@ -43,19 +63,7 @@ def read_from_directory(search_string, case_sensitive, outfile, dir_path):
             for file in files:
                 if file.endswith(".txt"):
                     file_path = os.path.join(root, file)
-                    with open(file_path, "r") as f:
-                        for line in f:
-                            line = line.rstrip("\n")
-                            if not case_sensitive:
-                                line = line.lower()
-                                search_string = search_string.lower()
-                            if search_string in line:
-                                matches.append(f"{file_path}:{line}")
-                                if outfile:
-                                    with open(outfile, "a") as out_f:
-                                        out_f.write(f"{file_path}:{line}\n")
-                                else:
-                                    print(f"{file_path}:{line}")
+                    matches += read_from_file(search_string, case_sensitive, outfile, file_path)
     except FileNotFoundError:
         print(f"Error: {dir_path} not found")
         sys.exit(1)
@@ -88,11 +96,19 @@ def main():
         matches = read_from_stdin(search_string, case_sensitive, outfile)
     else:
         if "-o" in sys.argv:
-            dir_path = sys.argv[2]
+            path = sys.argv[2]
+            index = 3
         else:
-            dir_path = sys.argv[2]
-        matches = read_from_directory(search_string, case_sensitive, outfile, dir_path)
+            path = sys.argv[2]
+            index = 3 if len(sys.argv) > 3 and "-i" in sys.argv else 2
 
+        if os.path.isdir(path):
+            matches = read_from_directory(search_string, case_sensitive, outfile, path)
+        elif os.path.isfile(path):
+            matches = read_from_file(search_string, case_sensitive, outfile, path)
+        else:
+            print(f"Error: {path} not found")
+           
     if not outfile:
         for match in matches:
             print(match)
